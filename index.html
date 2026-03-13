@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRAMEBRIDGE — Daily Photo Guessing Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0a0a0a;
+    --white: #f5f0e8;
+    --cream: #e8e0d0;
+    --accent: #a3c4bc;;
+    --accent2: #f0a500;
+    --grey: #888070;
+    --dark-grey: #1a1a18;
+    --border: rgba(245,240,232,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.4;
+  }
+
+  header {
+    width: 100%;
+    max-width: 680px;
+    padding: 24px 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.8rem;
+    letter-spacing: 0.06em;
+    color: var(--white);
+    line-height: 1;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--grey);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+  .icon-btn:hover { border-color: var(--white); color: var(--white); }
+
+  .tagline {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--grey);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 680px;
+    padding: 20px 20px 40px;
+    flex: 1;
+  }
+
+  /* Photo frame */
+  .photo-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/10;
+    background: var(--dark-grey);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.4s ease;
+  }
+
+  .photo-img.fade-out { opacity: 0; }
+  .photo-img.fade-in  { opacity: 1; }
+
+  .frame-counter {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--white);
+    background: rgba(10,10,10,0.7);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+
+  .photo-label {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: rgba(245,240,232,0.45);
+    text-transform: uppercase;
+  }
+
+  /* Reveal track */
+  .reveal-track {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+
+  .reveal-dot {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--dark-grey);
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .reveal-dot:hover::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--grey);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .reveal-dot.used-wrong  { background: var(--accent);  border-color: var(--accent); }
+  .reveal-dot.used-skip   { background: var(--grey);    border-color: var(--grey); }
+  .reveal-dot.active      { background: var(--accent2); border-color: var(--accent2); box-shadow: 0 0 8px rgba(240,165,0,0.4); }
+  .reveal-dot.correct     { background: #3cb371;        border-color: #3cb371; box-shadow: 0 0 8px rgba(60,179,113,0.4); }
+  .reveal-dot.viewed      { background: rgba(245,240,232,0.2); border-color: rgba(245,240,232,0.2); cursor: pointer; }
+
+  /* Input */
+  .input-area {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .guess-input {
+    flex: 1;
+    background: var(--dark-grey);
+    border: 1px solid var(--border);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    padding: 12px 16px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .guess-input::placeholder { color: var(--grey); }
+  .guess-input:focus { border-color: rgba(245,240,232,0.35); }
+
+  .btn {
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--white); color: var(--black); }
+  .btn-primary:hover { background: var(--cream); }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-skip { background: transparent; color: var(--grey); border-color: var(--border); }
+  .btn-skip:hover { color: var(--white); border-color: rgba(245,240,232,0.3); }
+
+  /* Autocomplete */
+  .autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: #161614;
+    border: 1px solid rgba(245,240,232,0.2);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    z-index: 100;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+  }
+  .autocomplete-list.open { display: block; }
+
+  .autocomplete-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--cream);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
+    transition: background 0.1s;
+  }
+  .autocomplete-item:hover, .autocomplete-item.highlighted { background: rgba(245,240,232,0.06); }
+  .cat-tag { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; color: var(--grey); text-transform: uppercase; flex-shrink: 0; }
+
+  .input-wrapper { flex: 1; position: relative; }
+
+  /* Guess history */
+  .guess-history { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+
+  .guess-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 5px;
+    font-size: 0.88rem;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.03em;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .guess-item.wrong   { background: rgba(232,83,58,0.1); border: 1px solid rgba(232,83,58,0.25); color: var(--white); }
+  .guess-item.skipped { background: rgba(136,128,112,0.1); border: 1px solid rgba(136,128,112,0.2); color: var(--grey); }
+  .guess-icon { font-size: 0.9rem; width: 18px; text-align: center; flex-shrink: 0; }
+
+  /* Result */
+  .result-overlay { display: none; flex-direction: column; gap: 14px; animation: fadeUp 0.4s ease; }
+  .result-overlay.show { display: flex; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card {
+    background: var(--dark-grey);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+  }
+  .result-emoji { font-size: 2.5rem; margin-bottom: 8px; }
+  .result-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .result-subtitle { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.2em; color: var(--grey); text-transform: uppercase; margin-bottom: 16px; }
+  .result-answer { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.08em; color: var(--accent2); }
+
+  .share-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--white);
+    color: var(--black);
+    border: none;
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .share-btn:hover { background: var(--cream); }
+
+  .next-info { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em; color: var(--grey); text-align: center; margin-top: 4px; }
+  #timer { color: var(--accent2); }
+
+  /* Modals */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(10,10,10,0.85);
+    backdrop-filter: blur(6px);
+    z-index: 500;
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--dark-grey);
+    border: 1px solid rgba(245,240,232,0.15);
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 440px;
+    width: 100%;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--grey); font-size: 1.2rem; cursor: pointer; }
+  .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 0.06em; margin-bottom: 16px; }
+
+  .how-item { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+  .how-num { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: var(--accent); flex-shrink: 0; width: 24px; line-height: 1; padding-top: 2px; }
+  .how-text { font-size: 0.88rem; color: var(--cream); line-height: 1.55; }
+  .how-text strong { color: var(--white); }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  .shake { animation: shake 0.35s ease; }
+
+  footer { padding: 16px 20px; font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.15em; color: rgba(136,128,112,0.5); text-align: center; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">FRAME<span>BRIDGE</span></div>
+    <div class="tagline">Daily Photo Guess · #<span id="puzzle-num">001</span></div>
+  </div>
+  <div class="header-right">
+    <button class="icon-btn" onclick="openStats()" title="Stats">📊</button>
+    <button class="icon-btn" onclick="openHow()" title="How to play">?</button>
+  </div>
+</header>
+
+<main>
+  <div class="photo-container" id="photo-container">
+    <img class="photo-img" id="main-photo" src="" alt="Guess this location">
+    <div class="frame-counter" id="frame-counter">PHOTO 1 / 6</div>
+    <div class="photo-label" id="photo-label">WHERE OR WHAT IS THIS?</div>
+  </div>
+
+  <div class="reveal-track" id="reveal-track">
+    <div class="reveal-dot active" id="dot-0" data-label="Photo 1"></div>
+    <div class="reveal-dot" id="dot-1" data-label="Photo 2"></div>
+    <div class="reveal-dot" id="dot-2" data-label="Photo 3"></div>
+    <div class="reveal-dot" id="dot-3" data-label="Photo 4"></div>
+    <div class="reveal-dot" id="dot-4" data-label="Photo 5"></div>
+    <div class="reveal-dot" id="dot-5" data-label="Photo 6"></div>
+  </div>
+
+  <div class="guess-history" id="guess-history"></div>
+
+  <div id="game-input">
+    <div class="input-area">
+      <div class="input-wrapper">
+        <input type="text" class="guess-input" id="guess-input" placeholder="Guess the location or subject…" autocomplete="off">
+        <div class="autocomplete-list" id="autocomplete-list"></div>
+      </div>
+      <button class="btn btn-primary" onclick="submitGuess()">GUESS</button>
+      <button class="btn btn-skip" onclick="skipGuess()">SKIP</button>
+    </div>
+  </div>
+
+  <div class="result-overlay" id="result-overlay">
+    <div class="result-card">
+      <div class="result-emoji" id="result-emoji">📸</div>
+      <div class="result-title" id="result-title">NICE ONE!</div>
+      <div class="result-subtitle" id="result-subtitle">Guessed in 3 photos</div>
+      <div class="result-answer" id="result-answer"></div>
+    </div>
+    <button class="share-btn" onclick="shareResult()">SHARE RESULT</button>
+    <div class="next-info">Next FRAMEBRIDGE in <span id="timer">00:00:00</span></div>
+  </div>
+</main>
+
+<footer>FRAMEBRIDGE · A daily photo guessing game · New puzzle every day</footer>
+
+<!-- How to play -->
+<div class="modal-overlay" id="how-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('how-modal')">✕</button>
+    <div class="modal-title">How to Play</div>
+    <div class="how-item">
+      <div class="how-num">1</div>
+      <div class="how-text">Each day, <strong>6 different photos</strong> of the same location or subject are revealed one at a time.</div>
+    </div>
+    <div class="how-item">
+      <div class="how-num">2</div>
+      <div class="how-text"><strong>Guess what or where it is.</strong> Each wrong guess or skip reveals the next photo.</div>
+    </div>
+    <div class="how-item">
+      <div class="how-num">3</div>
+      <div class="how-text">Photos go from <strong>abstract / close-up</strong> to <strong>obvious</strong>. Guess early to score higher!</div>
+    </div>
+    <div class="how-item">
+      <div class="how-num">4</div>
+      <div class="how-text">A <strong>new puzzle</strong> drops every day at midnight. Come back tomorrow!</div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="modal-overlay" id="stats-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('stats-modal')">✕</button>
+    <div class="modal-title">Your Stats</div>
+    <div id="stats-content" style="font-family:'DM Mono',monospace;font-size:0.85rem;color:var(--cream);line-height:2.2;"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+//  ██████╗ ██╗   ██╗███████╗███████╗██╗     ███████╗    ██████╗  █████╗ ████████╗ █████╗
+//  ██╔══██╗██║   ██║╚══███╔╝╚══███╔╝██║     ██╔════╝    ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗
+//  ██████╔╝██║   ██║  ███╔╝   ███╔╝ ██║     █████╗      ██║  ██║███████║   ██║   ███████║
+//  ██╔═══╝ ██║   ██║ ███╔╝   ███╔╝  ██║     ██╔══╝      ██║  ██║██╔══██║   ██║   ██╔══██║
+//  ██║     ╚██████╔╝███████╗███████╗███████╗███████╗    ██████╔╝██║  ██║   ██║   ██║  ██║
+//
+//  HOW TO ADD YOUR OWN PUZZLES
+//  ─────────────────────────────────────────────────────────────────────────────
+//  Each puzzle has:
+//    answer   → the correct answer string (case-insensitive match)
+//    category → shown in the autocomplete list
+//    hint     → shown after the game ends (optional flavour text)
+//    photos   → EXACTLY 6 URLs, ordered from HARDEST (most abstract/close-up)
+//               to EASIEST (most recognisable). Photo 1 shows first.
+//
+//  You can use any publicly accessible image URL.
+//  Recommended sources:
+//    • Unsplash  → https://images.unsplash.com/photo-<ID>?w=900&q=80
+//    • Wikimedia → direct file URLs
+//    • Your own CDN / hosting
+//
+//  TIPS FOR GOOD PUZZLES:
+//    Photo 1 → extreme close-up, texture, abstract detail — nearly impossible
+//    Photo 2 → slightly wider, still ambiguous
+//    Photo 3 → partial view, some context appears
+//    Photo 4 → wider shot, location starts to become clear
+//    Photo 5 → obvious establishing shot
+//    Photo 6 → full iconic view — only seen if all 5 guesses fail
+//
+//  ADD YOUR ANSWERS to the ALL_OPTIONS array too (at the bottom of PUZZLES).
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PUZZLES = [
+
+  // ── PUZZLE 1 ─────────────────────────────────────────────────────────────
+  {
+    answer: "Louis Besson's Room",
+    category: "Room",
+    hint: "Emmanuel College, Cambridge",
+    photos: [
+      // Photo 1 — hardest (close-up of ironwork lattice)
+      "https://res.cloudinary.com/drjzochiw/image/upload/v1773361635/IMG_0823_wue1ao.jpg",
+      // Photo 2 — base of tower, abstract angle
+      "https://res.cloudinary.com/drjzochiw/image/upload/v1773361635/IMG_0824_ho8ayk.jpg",
+      // Photo 3 — partial tower from below
+      "https://res.cloudinary.com/drjzochiw/image/upload/v1773361636/IMG_0825_uhcwna.jpg",
+      // Photo 4 — tower from the Seine
+      "https://res.cloudinary.com/drjzochiw/image/upload/v1773361636/IMG_0826_vviz0b.jpg",
+      // Photo 5 — classic daytime shot
+      "https://res.cloudinary.com/drjzochiw/image/upload/v1773361635/IMG_0827_znvewb.jpg",
+      // Photo 6 — easiest: iconic night shot with lights
+      "https://res.cloudinary.com/drjzochiw/image/upload/v1773361636/IMG_0828_qhb7gt.jpg",
+    ]
+  },
+
+  // ── PUZZLE 2 ─────────────────────────────────────────────────────────────
+  {
+    answer: "Northern Lights",
+    category: "Natural Phenomenon",
+    hint: "Aurora Borealis over Scandinavia",
+    photos: [
+      // Photo 1 — faint green glow on horizon, very dark
+      "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=900&q=80",
+      // Photo 2 — green shimmer over snow
+      "https://images.unsplash.com/photo-1570358934836-6802981e481e?w=900&q=80",
+      // Photo 3 — clear aurora curtain, no context
+      "https://images.unsplash.com/photo-1517411032315-54ef2cb783bb?w=900&q=80",
+      // Photo 4 — aurora over lake reflection
+      "https://images.unsplash.com/photo-1504214208698-ea1916a2195a?w=900&q=80",
+      // Photo 5 — vivid green & purple bands
+      "https://images.unsplash.com/photo-1543776615-68c5c22a8e0f?w=900&q=80",
+      // Photo 6 — easiest: full sky aurora with snowy landscape
+      "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=900&q=80",
+    ]
+  },
+
+  // ── PUZZLE 3 ─────────────────────────────────────────────────────────────
+  {
+    answer: "Grand Canyon",
+    category: "Natural Wonder",
+    hint: "Arizona, USA",
+    photos: [
+      // Photo 1 — extreme close-up of red rock texture
+      "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722?w=900&q=80",
+      // Photo 2 — narrow slot canyon walls
+      "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=900&q=80",
+      // Photo 3 — looking down a steep canyon face
+      "https://images.unsplash.com/photo-1527489377706-5bf97e608852?w=900&q=80",
+      // Photo 4 — partial canyon rim view
+      "https://images.unsplash.com/photo-1586348943529-beaae6c28db9?w=900&q=80",
+      // Photo 5 — wide canyon layers
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&q=80",
+      // Photo 6 — easiest: iconic panoramic Grand Canyon
+      "https://images.unsplash.com/photo-1557800636-894a64c1696f?w=900&q=80",
+    ]
+  },
+
+  // ── PUZZLE 4 ─────────────────────────────────────────────────────────────
+  {
+    answer: "Machu Picchu",
+    category: "Landmark",
+    hint: "Lost city of the Incas, Peru",
+    photos: [
+      // Photo 1 — stone wall close-up detail
+      "https://images.unsplash.com/photo-1580619305218-8423a7ef79b4?w=900&q=80",
+      // Photo 2 — stone steps in mist
+      "https://images.unsplash.com/photo-1587595431973-160d0d94add1?w=900&q=80",
+      // Photo 3 — terraces from below, misty mountain
+      "https://images.unsplash.com/photo-1609832878005-4cfe25bfce51?w=900&q=80",
+      // Photo 4 — partial ruins with Huayna Picchu
+      "https://images.unsplash.com/photo-1567950672282-58a02e3c3b45?w=900&q=80",
+      // Photo 5 — classic angled view
+      "https://images.unsplash.com/photo-1526392060635-9d6019884377?w=900&q=80",
+      // Photo 6 — easiest: full iconic aerial panorama
+      "https://images.unsplash.com/photo-1531065208531-4036c0dba3ca?w=900&q=80",
+    ]
+  },
+
+  // ── PUZZLE 5 ─────────────────────────────────────────────────────────────
+  {
+    answer: "Santorini",
+    category: "Destination",
+    hint: "Greek Cyclades Islands",
+    photos: [
+      // Photo 1 — close-up of blue dome texture
+      "https://images.unsplash.com/photo-1613395877344-13d4a8e0d49e?w=900&q=80",
+      // Photo 2 — whitewashed wall, narrow alley
+      "https://images.unsplash.com/photo-1601581875309-fafbf2d3ed3a?w=900&q=80",
+      // Photo 3 — white buildings, blue door
+      "https://images.unsplash.com/photo-1555993539-1732b0258235?w=900&q=80",
+      // Photo 4 — blue domes with caldera hint
+      "https://images.unsplash.com/photo-1504512485720-7d83a16ee930?w=900&q=80",
+      // Photo 5 — Oia village with domes
+      "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=900&q=80",
+      // Photo 6 — easiest: iconic sunset caldera panorama
+      "https://images.unsplash.com/photo-1580541832626-2a7131ee809f?w=900&q=80",
+    ]
+  },
+
+  // ── PUZZLE 6 ─────────────────────────────────────────────────────────────
+  {
+    answer: "Mount Fuji",
+    category: "Landmark",
+    hint: "Japan's iconic volcanic peak",
+    photos: [
+      // Photo 1 — close-up of volcanic ash / rocky summit
+      "https://images.unsplash.com/photo-1522383225653-ed111181a951?w=900&q=80",
+      // Photo 2 — snow-covered slope, no context
+      "https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=900&q=80",
+      // Photo 3 — summit in clouds
+      "https://images.unsplash.com/photo-1570459027562-4a916cc6113f?w=900&q=80",
+      // Photo 4 — Fuji from lake with reflection
+      "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=900&q=80",
+      // Photo 5 — Fuji with cherry blossoms
+      "https://images.unsplash.com/photo-1493780474015-ba834fd0ce2f?w=900&q=80",
+      // Photo 6 — easiest: classic iconic full view
+      "https://images.unsplash.com/photo-1526481280693-3bfa7568e0f3?w=900&q=80",
+    ]
+  },
+
+  // ── PUZZLE 7 ─────────────────────────────────────────────────────────────
+  {
+    answer: "Colosseum",
+    category: "Landmark",
+    hint: "Ancient amphitheatre, Rome, Italy",
+    photos: [
+      // Photo 1 — close-up of stone arch detail
+      "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=900&q=80",
+      // Photo 2 — interior corridor
+      "https://images.unsplash.com/photo-1587974928442-e893aa3b11e8?w=900&q=80",
+      // Photo 3 — partial exterior facade
+      "https://images.unsplash.com/photo-1569959220744-ff553533f492?w=900&q=80",
+      // Photo 4 — arena floor looking up
+      "https://images.unsplash.com/photo-1525874684015-58379d421a52?w=900&q=80",
+      // Photo 5 — exterior with Roman street
+      "https://images.unsplash.com/photo-1529260830199-42c24126f198?w=900&q=80",
+      // Photo 6 — easiest: classic full exterior shot
+      "https://images.unsplash.com/photo-1571452579853-2f7f48fb0c87?w=900&q=80",
+    ]
+  },
+
+];
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  AUTOCOMPLETE OPTIONS
+//  Add every possible answer here so it appears in the dropdown.
+//  Format: { name: "Answer Text", cat: "Category" }
+// ══════════════════════════════════════════════════════════════════════════════
+const ALL_OPTIONS = [
+  { name: "Louis Besson's Room",       cat: "Room" },
+  { name: "Northern Lights",    cat: "Phenomenon" },
+  { name: "Grand Canyon",       cat: "Nature" },
+  { name: "Machu Picchu",       cat: "Landmark" },
+  { name: "Cherry Blossoms",    cat: "Nature" },
+  { name: "Santorini",          cat: "Destination" },
+  { name: "Mount Fuji",         cat: "Landmark" },
+  { name: "Colosseum",          cat: "Landmark" },
+  { name: "Niagara Falls",      cat: "Nature" },
+  { name: "Stonehenge",         cat: "Landmark" },
+  { name: "Great Wall of China",cat: "Landmark" },
+  { name: "Sahara Desert",      cat: "Nature" },
+  { name: "Venice Canals",      cat: "Destination" },
+  { name: "Big Ben",            cat: "Landmark" },
+  { name: "Taj Mahal",          cat: "Landmark" },
+  { name: "Angkor Wat",         cat: "Landmark" },
+  { name: "Petra",              cat: "Landmark" },
+  { name: "Iguazu Falls",       cat: "Nature" },
+  { name: "Great Barrier Reef", cat: "Nature" },
+  { name: "Patagonia",          cat: "Nature" },
+  { name: "Amalfi Coast",       cat: "Destination" },
+  { name: "Bora Bora",          cat: "Destination" },
+  { name: "Serengeti",          cat: "Nature" },
+  { name: "Pyramids of Giza",   cat: "Landmark" },
+  { name: "Banff National Park",cat: "Nature" },
+  { name: "Cappadocia",         cat: "Destination" },
+  { name: "Amazon Rainforest",  cat: "Nature" },
+  { name: "Milky Way",          cat: "Astronomy" },
+  { name: "Kyoto",              cat: "Destination" },
+  { name: "Acropolis",          cat: "Landmark" },
+];
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  GAME ENGINE — no need to edit below this line
+// ══════════════════════════════════════════════════════════════════════════════
+
+function getDayIndex() {
+  const start = new Date('2024-01-01');
+  const today = new Date();
+  const days = Math.floor((today - start) / 86400000);
+  //return days % PUZZLES.length;
+  return 0;
+}
+
+let state = {
+  puzzleIndex: getDayIndex(),
+  currentClue: 0,
+  guesses: [],
+  gameOver: false,
+  won: false,
+  viewingClue: 0, // which photo is currently displayed (for reviewed dots)
+};
+
+const puzzle = PUZZLES[state.puzzleIndex];
+document.getElementById('puzzle-num').textContent = String(state.puzzleIndex + 1).padStart(3, '0');
+
+// ── Load & restore state ─────────────────────────────────────────────────────
+const savedKey = 'framebridge_state_' + new Date().toDateString();
+const saved = localStorage.getItem(savedKey);
+if (saved) {
+  try {
+    const s = JSON.parse(saved);
+    state = { ...state, ...s };
+  } catch(e) {}
+}
+
+const photoEl = document.getElementById('main-photo');
+
+function init() {
+  setPhoto(state.currentClue, false);
+  state.guesses.forEach((g, i) => {
+    addGuessItem(g.text, g.type);
+    markDot(i, g.type);
+  });
+  // Mark already-unlocked dots as viewable
+  for (let i = 0; i < state.currentClue; i++) {
+    const dot = document.getElementById('dot-' + i);
+    if (dot && !dot.classList.contains('used-wrong') && !dot.classList.contains('used-skip') && !dot.classList.contains('correct')) {
+      dot.classList.add('viewed');
+    }
+  }
+  if (state.currentClue < 6 && !state.gameOver) {
+    const activeDot = document.getElementById('dot-' + state.currentClue);
+    if (activeDot) activeDot.classList.add('active');
+  }
+  document.getElementById('frame-counter').textContent = `PHOTO ${state.currentClue + 1} / 6`;
+  if (state.gameOver) showResult(false);
+
+  // Make past dots clickable to review photos
+  for (let i = 0; i <= state.currentClue && i < 6; i++) {
+    (function(idx) {
+      const dot = document.getElementById('dot-' + idx);
+      if (dot) dot.addEventListener('click', () => reviewPhoto(idx));
+    })(i);
+  }
+}
+
+function setPhoto(index, animate) {
+  const url = puzzle.photos[Math.min(index, 5)];
+  if (animate) {
+    photoEl.classList.add('fade-out');
+    setTimeout(() => {
+      photoEl.src = url;
+      photoEl.classList.remove('fade-out');
+    }, 300);
+  } else {
+    photoEl.src = url;
+  }
+  state.viewingClue = index;
+  document.getElementById('frame-counter').textContent = `PHOTO ${index + 1} / 6`;
+}
+
+function reviewPhoto(index) {
+  if (index > state.currentClue) return;
+  setPhoto(index, true);
+}
+
+// ── Core game logic ──────────────────────────────────────────────────────────
+function submitGuess() {
+  if (state.gameOver) return;
+  const input = document.getElementById('guess-input');
+  const val = input.value.trim();
+  if (!val) return;
+
+  const isCorrect = val.toLowerCase() === puzzle.answer.toLowerCase();
+
+  if (isCorrect) {
+    state.guesses.push({ text: val, type: 'correct' });
+    markDot(state.currentClue, 'correct');
+    addGuessItem(val, 'correct');
+    state.won = true;
+    state.gameOver = true;
+    // Show final (easiest) photo on win
+    setPhoto(5, true);
+    setTimeout(() => showResult(true), 600);
+  } else {
+    state.guesses.push({ text: val, type: 'wrong' });
+    markDot(state.currentClue, 'wrong');
+    addGuessItem(val, 'wrong');
+
+    document.getElementById('photo-container').classList.add('shake');
+    setTimeout(() => document.getElementById('photo-container').classList.remove('shake'), 400);
+
+    state.currentClue++;
+
+    if (state.currentClue >= 6) {
+      state.gameOver = true;
+      setPhoto(5, true);
+      setTimeout(() => showResult(true), 600);
+    } else {
+      setPhoto(state.currentClue, true);
+      document.getElementById('frame-counter').textContent = `PHOTO ${state.currentClue + 1} / 6`;
+      const nextDot = document.getElementById('dot-' + state.currentClue);
+      if (nextDot) {
+        nextDot.classList.add('active');
+        nextDot.addEventListener('click', () => reviewPhoto(state.currentClue));
+      }
+    }
+  }
+
+  input.value = '';
+  closeAutoComplete();
+  saveState();
+}
+
+function skipGuess() {
+  if (state.gameOver) return;
+  state.guesses.push({ text: '—', type: 'skipped' });
+  markDot(state.currentClue, 'skip');
+  addGuessItem('Skipped', 'skipped');
+  state.currentClue++;
+
+  if (state.currentClue >= 6) {
+    state.gameOver = true;
+    setPhoto(5, true);
+    setTimeout(() => showResult(true), 600);
+  } else {
+    setPhoto(state.currentClue, true);
+    document.getElementById('frame-counter').textContent = `PHOTO ${state.currentClue + 1} / 6`;
+    const nextDot = document.getElementById('dot-' + state.currentClue);
+    if (nextDot) {
+      nextDot.classList.add('active');
+      nextDot.addEventListener('click', () => reviewPhoto(state.currentClue));
+    }
+  }
+  saveState();
+}
+
+function markDot(index, type) {
+  const dot = document.getElementById('dot-' + index);
+  if (!dot) return;
+  dot.classList.remove('active', 'viewed');
+  if (type === 'correct')  dot.classList.add('correct');
+  else if (type === 'wrong') dot.classList.add('used-wrong');
+  else dot.classList.add('used-skip');
+}
+
+function addGuessItem(text, type) {
+  const history = document.getElementById('guess-history');
+  const item = document.createElement('div');
+  item.className = 'guess-item ' + (type === 'correct' ? '' : type === 'skipped' ? 'skipped' : 'wrong');
+  const icon = type === 'correct' ? '✓' : type === 'skipped' ? '→' : '✕';
+  item.innerHTML = `<span class="guess-icon">${icon}</span><span>${text}</span>`;
+  history.appendChild(item);
+}
+
+function showResult(animate) {
+  document.getElementById('game-input').style.display = 'none';
+  const overlay = document.getElementById('result-overlay');
+  if (animate) overlay.classList.add('show');
+  else { overlay.style.animation = 'none'; overlay.classList.add('show'); }
+
+  const emojis = state.won
+    ? ['🎯','🔥','⚡','👁️','🌟','📸'][state.guesses.length - 1] || '📸'
+    : '😞';
+  const titles = state.won
+    ? ['PERFECT!','BRILLIANT!','GREAT SHOT!','NICE ONE!','CLOSE CALL!','JUST MADE IT!'][state.guesses.length - 1] || 'GOT IT!'
+    : 'BETTER LUCK TOMORROW!';
+  const sub = state.won
+    ? `Guessed in ${state.guesses.length} photo${state.guesses.length > 1 ? 's' : ''}`
+    : 'The answer was…';
+
+  document.getElementById('result-emoji').textContent = emojis;
+  document.getElementById('result-title').textContent = titles;
+  document.getElementById('result-subtitle').textContent = sub;
+  document.getElementById('result-answer').textContent = puzzle.answer.toUpperCase();
+
+  if (!localStorage.getItem('framebridge_stats_saved_' + new Date().toDateString())) {
+    saveStats(state.won);
+    localStorage.setItem('framebridge_stats_saved_' + new Date().toDateString(), '1');
+  }
+
+  startTimer();
+}
+
+function shareResult() {
+  const dots = state.guesses.map(g =>
+    g.type === 'correct' ? '🟩' : g.type === 'skipped' ? '⬛' : '🟥'
+  ).join('');
+  const text = `FRAMEBRIDGE #${state.puzzleIndex + 1}\n${dots}\n\nPlay at framebridge.game`;
+  if (navigator.share) {
+    navigator.share({ text });
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.querySelector('.share-btn');
+      const orig = btn.textContent;
+      btn.textContent = 'COPIED! ✓';
+      setTimeout(() => btn.textContent = orig, 2000);
+    });
+  }
+}
+
+function saveState() {
+  localStorage.setItem(savedKey, JSON.stringify({
+    currentClue: state.currentClue,
+    guesses: state.guesses,
+    gameOver: state.gameOver,
+    won: state.won,
+  }));
+}
+
+// ── Autocomplete ─────────────────────────────────────────────────────────────
+const inputEl = document.getElementById('guess-input');
+const acList  = document.getElementById('autocomplete-list');
+let highlighted = -1;
+
+inputEl.addEventListener('input', () => {
+  const val = inputEl.value.trim().toLowerCase();
+  if (!val || val.length < 2) { closeAutoComplete(); return; }
+  const matches = ALL_OPTIONS.filter(o => o.name.toLowerCase().includes(val));
+  if (!matches.length) { closeAutoComplete(); return; }
+  highlighted = -1;
+  acList.innerHTML = matches.slice(0, 7).map(m =>
+    `<div class="autocomplete-item" data-name="${m.name}" onclick="selectOption('${m.name.replace(/'/g,"\\'")}')">
+      <span>${m.name}</span><span class="cat-tag">${m.cat}</span>
+    </div>`
+  ).join('');
+  acList.classList.add('open');
+});
+
+inputEl.addEventListener('keydown', (e) => {
+  const items = acList.querySelectorAll('.autocomplete-item');
+  if (e.key === 'ArrowDown') {
+    highlighted = Math.min(highlighted + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('highlighted', i === highlighted));
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    highlighted = Math.max(highlighted - 1, -1);
+    items.forEach((el, i) => el.classList.toggle('highlighted', i === highlighted));
+    e.preventDefault();
+  } else if (e.key === 'Enter') {
+    if (highlighted >= 0 && items[highlighted]) selectOption(items[highlighted].dataset.name);
+    else submitGuess();
+  } else if (e.key === 'Escape') {
+    closeAutoComplete();
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.input-wrapper')) closeAutoComplete();
+});
+
+function selectOption(name) {
+  inputEl.value = name;
+  closeAutoComplete();
+  inputEl.focus();
+}
+
+function closeAutoComplete() {
+  acList.classList.remove('open');
+  acList.innerHTML = '';
+}
+
+// ── Timer ─────────────────────────────────────────────────────────────────────
+function startTimer() {
+  function update() {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    const diff = midnight - now;
+    const h = String(Math.floor(diff / 3600000)).padStart(2,'0');
+    const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2,'0');
+    const s = String(Math.floor((diff % 60000) / 1000)).padStart(2,'0');
+    document.getElementById('timer').textContent = `${h}:${m}:${s}`;
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+function openHow()   { document.getElementById('how-modal').classList.add('open'); }
+function openStats() {
+  const s = getStats();
+  document.getElementById('stats-content').innerHTML = `
+    <div>Played: <strong style="color:var(--white)">${s.played}</strong></div>
+    <div>Won: <strong style="color:var(--white)">${s.won}</strong></div>
+    <div>Win rate: <strong style="color:var(--accent2)">${s.played ? Math.round(s.won/s.played*100) : 0}%</strong></div>
+    <div>Current streak: <strong style="color:var(--white)">${s.streak}</strong></div>
+    <div>Best streak: <strong style="color:var(--white)">${s.best}</strong></div>
+  `;
+  document.getElementById('stats-modal').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+function getStats() {
+  try { return JSON.parse(localStorage.getItem('framebridge_stats') || '{"played":0,"won":0,"streak":0,"best":0}'); }
+  catch { return {played:0,won:0,streak:0,best:0}; }
+}
+function saveStats(won) {
+  const s = getStats();
+  s.played++;
+  if (won) { s.won++; s.streak++; s.best = Math.max(s.best, s.streak); }
+  else { s.streak = 0; }
+  localStorage.setItem('framebridge_stats', JSON.stringify(s));
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+if (window.location.search.includes('reset')) {
+  localStorage.removeItem(savedKey);
+  localStorage.removeItem('framebridge_stats_saved_' + new Date().toDateString());
+  window.location.href = window.location.pathname; // reload without ?reset
+}
+
+init();
+if (!localStorage.getItem('framebridge_visited')) {
+  localStorage.setItem('framebridge_visited', '1');
+  setTimeout(() => openHow(), 600);
+}
+```
+if (!localStorage.getItem('framebridge_visited')) {
+  localStorage.setItem('framebridge_visited', '1');
+  setTimeout(() => openHow(), 600);
+}
+```
+</script>
+</body>
+</html>
